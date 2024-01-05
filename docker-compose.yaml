@@ -1,0 +1,61 @@
+version: '3.1'
+
+services:
+
+  wordpress:
+    image: wordpress
+    container_name: ${STACK_NAME}-wordpress
+    restart: unless-stopped
+    command: 
+        - /bin/sh
+        - -c
+        - |
+            test $$(getent group docker) || addgroup --gid ${APACHE_RUN_GROUP} docker
+            test $$(id -u docker) || adduser --uid ${APACHE_RUN_USER} --ingroup docker \
+            --home /home/docker --disabled-password --gecos '' docker
+            /usr/local/bin/docker-entrypoint.sh apache2-foreground   
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${STACK_NAME}
+      WORDPRESS_DB_PASSWORD: ${STACK_NAME}
+      WORDPRESS_DB_NAME: wordpress
+      APACHE_RUN_USER: "docker"
+      APACHE_RUN_GROUP: "docker"
+    networks:
+      - proxy
+      - wordpress
+    volumes:
+      - ./wordpress:/var/www/html
+
+  db:
+    image: jc21/mariadb-aria:latest
+    container_name: ${STACK_NAME}-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: ${STACK_NAME}
+      MYSQL_PASSWORD: ${STACK_NAME}
+      MYSQL_ROOT_PASSWORD: ${STACK_NAME}
+    networks:
+      - wordpress
+    volumes:
+      - db:/var/lib/mysql
+  phpmyadmin:
+    image: linuxserver/phpmyadmin:latest
+    container_name: ${STACK_NAME}-phpmyadmin
+    restart: unless-stopped  
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${STACK_NAME}      
+    networks:     
+      - proxy
+      - wordpress
+
+volumes:
+  db:
+
+networks:
+  proxy:
+    external: true
+  wordpress:
